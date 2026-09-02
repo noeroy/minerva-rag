@@ -1,0 +1,25 @@
+# Secrets
+.env
+*.key
+
+# Environnement virtuel
+venv/
+venv_projet_llm/
+__pycache__/
+*.pyc
+
+# Données générées (trop volumineuses / régénérables via les scripts)
+papers/
+chroma_db/
+all_chunks.json
+
+# Cache modèles (HuggingFace, etc.)
+.cache/
+
+# OS / éditeurs
+.DS_Store
+.vscode/
+*.swp
+
+# Streamlit
+.streamlit/secrets.toml

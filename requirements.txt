@@ -1,0 +1,10 @@
+arxiv
+pandas
+unstructured[pdf]
+pdfminer.six
+tiktoken
+langchain-text-splitters
+sentence-transformers
+chromadb
+mistralai
+streamlit
