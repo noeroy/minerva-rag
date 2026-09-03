@@ -1,14 +1,6 @@
 # MINERvA RAG — Recherche dans la littérature scientifique
 
-Système de RAG (Retrieval-Augmented Generation) permettant d'interroger en
-langage naturel un corpus de 51 papiers de physique expérimentale
-(collaboration MINERvA, Fermilab) et un white paper de référence, avec
-réponses sourcées et vérifiables.
-
-**Contexte** : projet portfolio réalisé lors d'une transition d'un poste de
-postdoc en physique des hautes énergies (neutrinos, MINERvA/DUNE) vers un
-poste d'ingénieur data. L'objectif était de démontrer la conception d'un
-pipeline RAG complet et économe, pas de construire un outil de production.
+Système de RAG (Retrieval-Augmented Generation) permettant d'interroger en langage naturel un corpus de 51 papiers de l'experience neutrino  MINERvA  et un white paper de référence, avec réponses sourcées et vérifiables.
 
 ![Démo de l'interface](docs/demo.gif)
 
@@ -27,8 +19,7 @@ pip install -r requirements.txt
 python scrap_articles.py
 ```
 
-**2. Chunker et indexer** (idempotent — ne retraite que les nouveaux
-papiers ajoutés au CSV) :
+**2. Chunker et indexer** (idempotent — ne retraite que les nouveaux papiers ajoutés au CSV) :
 ```bash
 python chunk_papers.py
 ```
@@ -47,6 +38,4 @@ streamlit run app.py
 
 ## Stack
 
-Python · unstructured · pdfminer.six · tiktoken · langchain-text-splitters
-· sentence-transformers (bge-small-en-v1.5) · ChromaDB · Mistral AI ·
-Streamlit
+Python · unstructured · pdfminer.six · tiktoken · langchain-text-splitters · sentence-transformers (bge-small-en-v1.5) · ChromaDB · Mistral AI · Streamlit
