@@ -3,11 +3,14 @@ from pathlib import Path
 
 import chromadb
 from pdfminer.high_level import extract_text
-from unstructured.partition.pdf import partition_pdf
 from sentence_transformers import SentenceTransformer
+from unstructured.partition.pdf import partition_pdf
 
-from chunk_utils import token_length, is_garbled_vertical, looks_like_section_title, build_chunks
-
+from chunk_utils import (
+    build_chunks,
+    is_garbled_vertical,
+    looks_like_section_title,
+)
 
 METADATA_PATH = Path("papers_metadata.json")
 PAPERS_DIR = Path("papers")

@@ -5,10 +5,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from chunk_utils import (
-    token_length,
+    build_chunks,
     is_garbled_vertical,
     looks_like_section_title,
-    build_chunks,
+    token_length,
 )
 
 

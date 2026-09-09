@@ -1,10 +1,11 @@
-import chromadb
 import os
+
+import chromadb
+import streamlit as st
+
 #from mistralai import Mistral
 from mistralai.client import Mistral
 from sentence_transformers import SentenceTransformer
-import streamlit as st
-
 
 #choice of Model, we're using a small MistralAI model here
 model = SentenceTransformer("BAAI/bge-small-en-v1.5")

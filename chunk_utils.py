@@ -1,3 +1,13 @@
+"""
+Fonctions pures de traitement de texte, utilisées par chunk_papers.py.
+
+Isolées dans ce module séparé pour rester testables sans dépendre de
+tiktoken/torch/unstructured/chromadb -- seules tiktoken et
+langchain-text-splitters sont nécessaires ici, ce qui garde les tests
+unitaires rapides (pas de téléchargement de modèle, pas de dépendance
+lourde à installer en CI).
+"""
+
 import re
 
 import tiktoken
@@ -26,9 +36,7 @@ def looks_like_section_title(text):
         return False
     if is_garbled_vertical(text):
         return False
-    if re.match(r"^[IVX]+\.\s", text) or text.isupper():
-        return True
-    return False
+    return bool(re.match(r"^[IVX]+\.\s", text) or text.isupper())
 
 
 # Groups elements by section and splits them into fixed-size chunks (in tokens).
@@ -45,7 +53,7 @@ def build_chunks(cleaned_elements, chunk_size=500, chunk_overlap=50):
     all_chunks = []
     for (section_name, method), elements in sections.items():
         full_text = " ".join(el["text"] for el in elements)
-        pages = sorted(set(el["page"] for el in elements))
+        pages = sorted({el["page"] for el in elements})
 
         for chunk_text in splitter.split_text(full_text):
             all_chunks.append({
