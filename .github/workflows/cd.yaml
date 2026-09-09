@@ -1,0 +1,55 @@
+
+name: CD
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: europe-west1
+  REPOSITORY: minerva-rag
+  SERVICE: minerva-rag
+  IMAGE: europe-west1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/minerva-rag/app
+
+jobs:
+  deploy:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # nécessaire pour l'authentification via Workload Identity Federation
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Authentification GCP
+      uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+    - name: Setup gcloud CLI
+      uses: google-github-actions/setup-gcloud@v2
+
+    - name: Configurer Docker pour Artifact Registry
+      run: gcloud auth configure-docker europe-west1-docker.pkg.dev --quiet
+
+    - name: Build et push de l'image
+      run: |
+        docker build -t ${{ env.IMAGE }}:${{ github.sha }} -t ${{ env.IMAGE }}:latest .
+        docker push ${{ env.IMAGE }}:${{ github.sha }}
+        docker push ${{ env.IMAGE }}:latest
+
+    - name: Déploiement sur Cloud Run
+      run: |
+        gcloud run deploy ${{ env.SERVICE }} \
+          --image ${{ env.IMAGE }}:${{ github.sha }} \
+          --region ${{ env.REGION }} \
+          --platform managed \
+          --allow-unauthenticated \
+          --memory 2Gi \
+          --set-secrets MISTRAL_API_KEY=mistral-api-key:latest \
+          --max-instances 3

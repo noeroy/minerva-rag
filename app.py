@@ -1,19 +1,43 @@
 import os
+import time
 
 import chromadb
 import streamlit as st
-
-#from mistralai import Mistral
 from mistralai.client import Mistral
+from mistralai.client.errors.sdkerror import SDKError
 from sentence_transformers import SentenceTransformer
 
-#choice of Model, we're using a small MistralAI model here
+# Choix des modèles : bge-small-en-v1.5 pour les embeddings (local, gratuit),
+# Mistral pour la synthèse finale (seul appel payant du pipeline).
 model = SentenceTransformer("BAAI/bge-small-en-v1.5")
 
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
 collection = chroma_client.get_collection("minerva_papers")
 
 mistral_client = Mistral(api_key=os.environ["MISTRAL_API_KEY"])
+
+# Garde-fou : évite qu'un lien public ne génère une facture API incontrôlée.
+# Limite par session utilisateur (pas globale) -- suffisant pour une démo.
+MAX_QUERIES_PER_SESSION = 10
+
+
+def call_mistral_with_retry(prompt, max_retries=3, base_delay=2):
+    """Appelle Mistral avec retry en cas de rate limit (429).
+    Attente exponentielle : 2s, 4s, 8s entre les tentatives."""
+    for attempt in range(max_retries):
+        try:
+            return mistral_client.chat.complete(
+                model="mistral-small-latest",
+                messages=[{"role": "user", "content": prompt}],
+            )
+        except SDKError as e:
+            if "429" in str(e) and attempt < max_retries - 1:
+                delay = base_delay * (2 ** attempt)
+                st.info(f"Limite de débit atteinte, nouvelle tentative dans {delay}s...")
+                time.sleep(delay)
+            else:
+                raise
+
 
 def build_context(results):
     parts = []
@@ -24,19 +48,12 @@ def build_context(results):
 
 
 def rag_answer_mistral(user_question, search_query=None, n_results=8):
-    # Si pas de requête de recherche fournie, utilise directement la question
     query_to_search = search_query if search_query else user_question
 
     query_embedding = model.encode([query_to_search])
     results = collection.query(query_embeddings=query_embedding.tolist(), n_results=n_results)
 
     context = build_context(results)
-
-    # for doc, meta in zip(results["documents"][0], results["metadatas"][0]):
-    #     print("CONTEXTE: ")
-    #     print(f"[{meta['arxiv_id']} - {meta['section']}]")
-    #     print(doc)
-    #     print("---") 
 
     prompt = f"""Voici des passages extraits de papiers scientifiques MINERvA :
 
@@ -51,32 +68,45 @@ Instructions :
   Cite chaque affirmation avec le format (arXiv:XXXX.XXXXX).
   Si les passages ne permettent pas de répondre complètement, dis-le explicitement
   dans cette partie.
-- Distingue les "Documents de référence générale" (contexte pédagogique) des "Mesures MINERvA" 
+- Distingue les "Documents de référence générale" (contexte pédagogique) des "Mesures MINERvA"
   (résultats de recherche spécifiques) quand tu cites tes sources.
 - Si tu as des connaissances générales pertinentes qui vont au-delà de ces passages,
   ajoute une section séparée intitulée "### Au-delà des sources fournies" —
   clairement distincte de la réponse basée sur les sources, sans mélanger les deux.
-- Réponds en Francais."""
+- Réponds en Français."""
 
-    response = mistral_client.chat.complete(
-        model="mistral-small-latest",
-        messages=[{"role": "user", "content": prompt}]
-    )
+    response = call_mistral_with_retry(prompt)
 
     return {
         "answer": response.choices[0].message.content,
         "sources": [
             {"arxiv_id": m["arxiv_id"], "title": m["title"], "section": m["section"]}
             for m in results["metadatas"][0]
-        ]
+        ],
     }
 
+
 st.title("MINERvA RAG — Recherche dans la littérature scientifique")
-st.caption("Corpus : 51 papiers de mesure MINERvA + 1 white paper de référence (NuSTEC) — Embeddings locaux + synthèse Mistral")
+st.caption(
+    "Corpus : 51 papiers de mesure MINERvA + 1 white paper de référence (NuSTEC) "
+    "— Embeddings locaux + synthèse Mistral"
+)
+
+if "query_count" not in st.session_state:
+    st.session_state.query_count = 0
+
+remaining = MAX_QUERIES_PER_SESSION - st.session_state.query_count
+st.caption(f"Requêtes restantes pour cette session : {remaining}/{MAX_QUERIES_PER_SESSION}")
 
 question = st.text_input("Pose ta question sur la physique MINERvA :")
 
-if st.button("Chercher") and question:
+if st.session_state.query_count >= MAX_QUERIES_PER_SESSION:
+    st.warning(
+        "Limite de requêtes atteinte pour cette session de démo. "
+        "Recharge la page pour repartir avec un nouveau quota."
+    )
+elif st.button("Chercher") and question:
+    st.session_state.query_count += 1
     with st.spinner("Recherche en cours..."):
         result = rag_answer_mistral(question)
 
@@ -88,6 +118,3 @@ if st.button("Chercher") and question:
         with st.expander(f"{s['arxiv_id']} — {s['title']}"):
             st.write(f"Section : {s['section']}")
             st.markdown(f"[Voir le PDF](https://arxiv.org/abs/{s['arxiv_id']})")
-
-# result = rag_answer_mistral("What is the flux uncertainty in the MINERvA medium energy beam and how is it constrained?")
-# print(result["answer"])

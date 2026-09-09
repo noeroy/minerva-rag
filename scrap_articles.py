@@ -9,21 +9,45 @@ import pandas as pd
 df = pd.read_csv("minerva_papers_arxiv.csv", dtype={"arxiv_id": str})
 output_dir = Path("papers")
 output_dir.mkdir(exist_ok=True)
-all_metadata = []
+metadata_path = Path("papers_metadata.json")
+
+# Charge les métadonnées déjà présentes, pour ne pas les écraser quand on
+# relance le script sur un CSV qui a des papiers déjà téléchargés.
+if metadata_path.exists():
+    with open(metadata_path, "r", encoding="utf-8") as f:
+        all_metadata = json.load(f)
+else:
+    all_metadata = []
+
+already_have_metadata = {m["id"] for m in all_metadata}
+
 client = arxiv.Client()
 
 for _, row in df.iterrows():
     filepath = output_dir / f"{row['arxiv_id']}.pdf"
+
+    if row["arxiv_id"] in already_have_metadata:
+        continue  # déjà téléchargé ET déjà dans les métadonnées, rien à faire
+
     if filepath.exists():
-        continue
+        # Le PDF existe mais ses métadonnées manquent (ex: fichier
+        # récupéré autrement, ou papers_metadata.json perdu) -- on
+        # re-fetch juste les métadonnées sans re-télécharger le PDF.
+        pass
+    else:
+        try:
+            search = arxiv.Search(id_list=[row["arxiv_id"]])
+            paper = next(client.results(search))
+            urlretrieve(paper.pdf_url, str(filepath))
+            print(f"OK: {row['arxiv_id']} - {paper.title}")
+        except Exception as e:  # noqa: BLE001 -- volontaire : on veut continuer sur les autres papiers même en cas d'erreur inattendue (réseau, PDF corrompu, timeout arXiv...)
+            print(f"ECHEC téléchargement: {row['arxiv_id']} - {e}")
+            continue
 
     try:
         search = arxiv.Search(id_list=[row["arxiv_id"]])
         paper = next(client.results(search))
-        urlretrieve(paper.pdf_url, str(filepath))
-        print(f"OK: {row['arxiv_id']} - {paper.title}")
 
-        # Bonus : récupère direct les métadonnées propres
         metadata = {
             "id": row["arxiv_id"],
             "title": paper.title,
@@ -35,16 +59,15 @@ for _, row in df.iterrows():
             # Se propage automatiquement jusqu'au prompt final du RAG.
             "doc_type": row.get("doc_type", "primary_research"),
         }
-
         all_metadata.append(metadata)
 
-        # tu peux stocker ça dans un JSON/CSV à part pour la Phase 3
-
-    except Exception as e:  # noqa: BLE001 -- volontaire : on veut continuer sur les autres papiers même en cas d'erreur inattendue (réseau, PDF corrompu, timeout arXiv...)
-        print(f"ECHEC: {row['arxiv_id']} - {e}")
+    except Exception as e:  # noqa: BLE001 -- volontaire : idem, continuer sur les autres papiers
+        print(f"ECHEC métadonnées: {row['arxiv_id']} - {e}")
 
     time.sleep(3)
 
 
-with open("papers_metadata.json", "w", encoding="utf-8") as f:
+with open(metadata_path, "w", encoding="utf-8") as f:
     json.dump(all_metadata, f, ensure_ascii=False, indent=2)
+
+print(f"\nTotal: {len(all_metadata)} entrées dans papers_metadata.json")
