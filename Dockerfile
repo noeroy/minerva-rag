@@ -14,11 +14,15 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py chunk_utils.py chunk_papers.py scrap_articles.py ./
-# L'index ChromaDB pré-construit est copié dans l'image -- construit en
-# amont (localement ou en CI), pas régénéré à chaque déploiement (trop
-# lent, nécessiterait les PDF + un appel réseau à Hugging Face pour le
-# modèle d'embedding).
-COPY chroma_db/ ./chroma_db/
+
+# L'index ChromaDB pré-construit n'est pas versionné dans le repo (trop
+# volumineux, régénérable via le pipeline). Il est téléchargé ici depuis
+# Google Cloud Storage au moment du build -- mis à jour manuellement via
+# `gsutil cp chroma_db.tar.gz gs://minervarag-chroma-db/` après chaque
+# ré-indexation locale.
+RUN curl -sL https://storage.googleapis.com/minervarag-chroma-db/chroma_db.tar.gz -o chroma_db.tar.gz \
+    && tar -xzf chroma_db.tar.gz \
+    && rm chroma_db.tar.gz
 
 EXPOSE 8080
 
