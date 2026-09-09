@@ -39,3 +39,5 @@ streamlit run app.py
 ## Stack
 
 Python · unstructured · pdfminer.six · tiktoken · langchain-text-splitters · sentence-transformers (bge-small-en-v1.5) · ChromaDB · Mistral AI · Streamlit
+
+![CI](https://github.com/noeroy/minerva-rag/actions/workflows/ci.yaml/badge.svg)
